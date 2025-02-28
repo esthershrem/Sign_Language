@@ -1,0 +1,136 @@
+#include <LiquidCrystal.h>
+
+#define flexSensor1 A1  // First flex sensor
+#define flexSensor2 A0  // Second flex sensor
+
+#define blue 6
+#define green 7
+#define red 8
+
+const int RS = 11, EN = 12, D4 = 2, D5 = 3, D6 = 4, D7 = 5;
+LiquidCrystal lcd(RS, EN, D4, D5, D6, D7);
+
+int lastState1 = -1;
+int lastState2 = -1;
+
+int buzzerPin = 9;
+int buttonPin = 7;
+int ledPin = 6;
+const int toneFreq = 523;
+bool isActive = false;
+bool lastButtonState = HIGH;
+
+void setup() {
+  pinMode(blue, OUTPUT);
+  pinMode(green, OUTPUT);
+  pinMode(red, OUTPUT);
+  Serial.begin(9600);
+
+  lcd.begin(16, 2);
+  lcd.setCursor(0, 0);
+  lcd.print("      Sign");
+  lcd.setCursor(0, 1);
+  lcd.print("    Language");
+  delay(3000);
+  lcd.clear();
+
+  pinMode(buzzerPin, OUTPUT);
+  pinMode(ledPin, OUTPUT);
+  pinMode(buttonPin, INPUT_PULLUP);
+}
+
+void loop() {
+  // Flex sensor and LCD code
+  int flexValue1 = analogRead(flexSensor1);
+  int flexValue2 = analogRead(flexSensor2);
+  Serial.print("Sensor 1: ");
+  Serial.print(flexValue1);
+  Serial.print(" | Sensor 2: ");
+  Serial.println(flexValue2);
+
+  int currentState1 = (flexValue1 >= 1020) ? 1 : (flexValue1 >= 980) ? 2 : 3;
+  int currentState2 = (flexValue2 >= 1020) ? 4 : (flexValue2 >= 980) ? 5 : 6;
+
+  // Determine which sensor is detecting movement (change in state)
+  if (currentState1 != lastState1) {
+    lcd.clear();
+    if (currentState1 == 1) {
+      lcd.setCursor(0, 0);
+      lcd.print("  I'm hungry");
+      setLEDs(HIGH, LOW, LOW);
+    } else if (currentState1 == 2) {
+      lcd.setCursor(0, 0);
+      lcd.print("  I'm tired");
+      setLEDs(LOW, LOW, HIGH);
+    } else {
+      lcd.setCursor(0, 0);
+      lcd.print(" Everything");
+      lcd.setCursor(0, 1);
+      lcd.print("  is OK ");
+      setLEDs(LOW, HIGH, LOW);
+    }
+    lastState1 = currentState1;
+    lastState2 = currentState2;  // Prevents sensor 2 from interfering immediately
+    delay(500);
+    return;  // Stop further processing to prioritize this sensor
+  }
+
+  if (currentState2 != lastState2) {
+    lcd.clear();
+    if (currentState2 == 4) {
+      lcd.setCursor(0, 0);
+      lcd.print("  Need Help!");
+      setLEDs(HIGH, LOW, HIGH);
+    } else if (currentState2 == 5) {
+      lcd.setCursor(0, 0);
+      lcd.print(" Feeling good");
+      setLEDs(LOW, HIGH, LOW);
+    } else {
+      lcd.setCursor(0, 0);
+      lcd.print("  Relaxing...");
+      setLEDs(LOW, LOW, HIGH);
+    }
+    lastState2 = currentState2;
+  }
+
+  delay(500);
+
+  // Buzzer and button code
+  bool buttonState = digitalRead(buttonPin);
+
+  // Detect button press (toggle mode)
+  if (buttonState == LOW && lastButtonState == HIGH) {
+    isActive = !isActive;
+    delay(300);  // Debounce
+  }
+  
+  lastButtonState = buttonState;
+
+  if (isActive) {
+    while (isActive) {  // Keep flashing until button is pressed again
+      digitalWrite(ledPin, HIGH);
+      tone(buzzerPin, toneFreq);
+      delay(150);
+
+      digitalWrite(ledPin, LOW);
+      noTone(buzzerPin);
+      delay(150);
+
+      // If button is pressed again, stop immediately
+      if (digitalRead(buttonPin) == LOW) {
+        isActive = false;
+        delay(150);  // Debounce
+      }
+    }
+  } else {
+    digitalWrite(ledPin, LOW);
+    noTone(buzzerPin);
+  }
+}
+
+// Helper function to set LED states
+void setLEDs(int blueState, int greenState, int redState) {
+  digitalWrite(blue, blueState);
+  digitalWrite(green, greenState);
+  digitalWrite(red, redState);
+}
